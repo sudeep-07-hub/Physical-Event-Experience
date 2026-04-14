@@ -1,0 +1,5 @@
+# AVCP edge ingestion layer — pinned production dependencies
+google-cloud-pubsub>=2.21.0,<3.0.0
+numpy>=1.26.0,<2.0.0
+pyzmq>=25.1.0,<27.0.0
+scipy>=1.12.0,<2.0.0
