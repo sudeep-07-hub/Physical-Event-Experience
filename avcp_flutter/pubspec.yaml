@@ -1,0 +1,57 @@
+name: avcp_flutter
+description: >
+  AVCP Glanceable UI — real-time crowd intelligence for stadium experiences.
+  Built with Riverpod state management, Freezed data models, and WCAG 2.1
+  accessibility compliance tested at 3000K stadium illumination.
+publish_to: 'none'
+version: 2.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.0
+
+  # Data models
+  freezed_annotation: ^2.4.0
+  json_annotation: ^4.9.0
+
+  # Maps & visualization
+  google_maps_flutter: ^2.6.0
+  fl_chart: ^0.68.0
+
+  # Firebase
+  firebase_core: ^2.27.0
+  firebase_database: ^10.4.0
+
+  # UI
+  google_fonts: ^6.2.0
+  qr_flutter: ^4.1.0
+
+  # Utilities
+  collection: ^1.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.0
+  freezed: ^2.5.0
+  json_serializable: ^6.8.0
+  riverpod_generator: ^2.4.0
+  mocktail: ^1.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Floor plan images for GroundOverlay
+    - assets/floor_plans/
+    # QR code logo overlay
+    - assets/images/
