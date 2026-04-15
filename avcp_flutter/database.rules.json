@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "venues": {
+      "$venue_id": {
+        "zones": {
+          ".read": "auth != null",
+          ".write": false,
+          "$zone_id": {
+            "current_vector": {
+              ".read": "auth != null",
+              ".validate": "newData.hasChildren(['zone_id', 'density_ppm2', 'timestamp_ms'])"
+            }
+          }
+        },
+        "system_health": {
+          ".read": "auth != null && auth.token.role === 'operator'",
+          ".write": "auth != null && auth.token.role === 'operator'"
+        },
+        "overrides": {
+          ".read": "auth != null && (auth.token.role === 'operator' || auth.token.role === 'staff')",
+          ".write": "auth != null && auth.token.role === 'operator'"
+        }
+      }
+    }
+  }
+}

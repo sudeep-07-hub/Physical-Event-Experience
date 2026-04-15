@@ -1,0 +1,152 @@
+# ──────────────────────────────────────────────────────────────────────
+# AVCP Temporal Fusion Transformer — Model Configuration
+# ──────────────────────────────────────────────────────────────────────
+# This file is the single source of truth for model architecture,
+# training hyperparameters, serving thresholds, and deployment config.
+# Consumed by: pipeline.py, crowd_predictor.py, Dockerfile entrypoint.
+# ──────────────────────────────────────────────────────────────────────
+
+model:
+  name: avcp-tft-crowd-predictor
+  version: "2.1.0"
+  architecture: temporal_fusion_transformer
+  framework: pytorch_forecasting
+
+# ── Input / Output Contract ──────────────────────────────────────────
+
+input:
+  timesteps: 150                     # 5 min @ 2s ticks
+  features: 12
+  feature_names:
+    - density_ppm2                   # [0] Normalized to [0, 1] via k_jam
+    - velocity_x                     # [1] m/s, signed
+    - velocity_y                     # [2] m/s, signed
+    - speed_p95                      # [3] m/s
+    - heading_deg                    # [4] [0, 360)
+    - dwell_ratio                    # [5] [0, 1]
+    - flow_variance                  # [6] kinetic-energy variance
+    - bottleneck_score               # [7] [0, 1]
+    - hour_of_day                    # [8] [0, 23]
+    - event_phase_enc                # [9–11] one-hot: pre/active/halftime/post (4-dim packed into 3 + implicit)
+    # Note: sector_hash_emb_32d is a categorical embedding handled inside TFT
+    # day_of_week is encoded as [12] but packed into the time-varying known reals
+
+  # Value range assertions (used in input validation)
+  value_ranges:
+    density_ppm2: [0.0, 1.0]        # After normalization
+    velocity_x: [-5.0, 5.0]
+    velocity_y: [-5.0, 5.0]
+    speed_p95: [0.0, 8.0]
+    heading_deg: [0.0, 360.0]
+    dwell_ratio: [0.0, 1.0]
+    flow_variance: [0.0, 100.0]
+    bottleneck_score: [0.0, 1.0]
+    hour_of_day: [0.0, 23.0]
+
+output:
+  fields:
+    - density_60s                    # Predicted density @ T+60s
+    - density_300s                   # Predicted density @ T+300s (5 min)
+    - confidence                     # Model confidence [0, 1]
+
+# ── Feature Engineering ──────────────────────────────────────────────
+
+features:
+  normalization:
+    density_k_jam: 6.5               # Fruin LoS-F crush threshold
+  event_phase_classes:
+    - pre
+    - active
+    - halftime
+    - post
+  sector_hash_embedding_dim: 32
+  anomaly_zscore_window_minutes: 15  # Rolling window for z-score baseline
+
+# ── PII Blocklist ────────────────────────────────────────────────────
+# Pipeline MUST abort if any of these columns appear in source data.
+
+pii_forbidden_columns:
+  - user_id
+  - device_id
+  - ip
+  - mac
+  - face_vector
+  - name
+  - email
+  - phone
+  - ssn
+  - passport
+  - lat_precise          # Sub-metre GPS is PII-adjacent
+  - lng_precise
+
+# ── Training ─────────────────────────────────────────────────────────
+
+training:
+  hardware:
+    machine_type: a2-highgpu-2g      # 2x A100 80GB
+    accelerator_type: NVIDIA_TESLA_A100
+    accelerator_count: 2
+  hyperparameters:
+    batch_size: 128
+    learning_rate: 0.001
+    max_epochs: 100
+    quantile_loss_quantiles: [0.1, 0.5, 0.9]
+    hidden_size: 64
+    attention_head_size: 4
+    dropout: 0.1
+    hidden_continuous_size: 32
+    gradient_clip_val: 0.1
+  early_stopping:
+    patience: 5
+    monitor: val_loss
+    mode: min
+  checkpoint:
+    save_every_n_epochs: 10
+    gcs_bucket: avcp-ml-artifacts
+    gcs_prefix: checkpoints/tft/
+
+# ── Evaluation Gates ─────────────────────────────────────────────────
+
+evaluation:
+  max_mape_percent: 8.0              # Pipeline fails if MAPE >= 8%
+  mandatory_test_scenarios:
+    - halftime_egress
+    - goal_scored_surge
+    - emergency_evacuation_sim
+  holdout_fraction: 0.15
+
+# ── Deployment ───────────────────────────────────────────────────────
+
+deployment:
+  endpoint_display_name: avcp-tft-crowd-predictor
+  traffic_split:
+    canary_percent: 10               # New model gets 10%
+    production_percent: 90           # Current model gets 90%
+  scaling:
+    min_replica_count: 3
+    max_replica_count: 10
+    target_cpu_utilization: 60
+  machine_type: n1-standard-4
+  container_image: gcr.io/avcp-prod/tft-serving:latest
+
+# ── Serving / Circuit Breaker ────────────────────────────────────────
+
+serving:
+  latency_target_ms: 40             # P99 edge pre-inference target
+  circuit_breaker:
+    latency_threshold_ms: 80        # Open circuit if P99 > 80ms
+    error_rate_threshold: 0.05      # Open circuit if error rate > 5%
+    rolling_window_seconds: 60
+    half_open_after_seconds: 30
+    min_requests_in_window: 10
+  fallback:
+    model: linear_regression
+    description: On-device cached regression model
+
+# ── BigQuery Source ──────────────────────────────────────────────────
+
+bigquery:
+  project: avcp-prod
+  dataset: avcp_dataset
+  table: crowd_vectors_historical
+  query_limit_rows: null             # No limit for production
