@@ -9,7 +9,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:avcp_flutter/models/congestion_level.dart';
-import 'package:avcp_flutter/models/crowd_velocity_vector.dart';
+import 'package:avcp_flutter/crowd_vector.dart';
 import 'package:avcp_flutter/models/zone_alert.dart';
 import 'package:avcp_flutter/services/crowd_analysis_service_impl.dart';
 

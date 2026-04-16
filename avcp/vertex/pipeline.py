@@ -14,11 +14,10 @@ Usage:
         --pipeline-root gs://avcp-ml-artifacts/pipelines
 """
 
-from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, List
 
 import yaml
 from kfp import dsl
@@ -59,7 +58,7 @@ def data_ingestion(
     project: str,
     dataset: str,
     table: str,
-    pii_forbidden_columns: list,
+    pii_forbidden_columns: List,
     output_dataset: Output[Dataset],
     ingestion_metrics: Output[Metrics],
 ) -> None:
@@ -133,7 +132,7 @@ def data_ingestion(
 def feature_engineering(
     input_dataset: Input[Dataset],
     k_jam: float,
-    event_phase_classes: list,
+    event_phase_classes: List,
     anomaly_zscore_window_minutes: int,
     output_dataset: Output[Dataset],
     feature_metrics: Output[Metrics],
@@ -255,7 +254,7 @@ def training(
     early_stopping_patience: int,
     checkpoint_gcs_bucket: str,
     checkpoint_gcs_prefix: str,
-    quantile_loss_quantiles: list,
+    quantile_loss_quantiles: List,
     output_model: Output[Model],
     training_metrics: Output[Metrics],
 ) -> None:
@@ -416,9 +415,9 @@ def evaluation(
     input_dataset: Input[Dataset],
     trained_model: Input[Model],
     max_mape_percent: float,
-    mandatory_scenarios: list,
+    mandatory_scenarios: List,
     eval_metrics: Output[Metrics],
-) -> str:
+) -> None:
     """Evaluate model on held-out surge test set.
 
     HARD GATE: Pipeline fails if MAPE >= 8% on ANY mandatory scenario.
@@ -501,8 +500,6 @@ def evaluation(
             f"EVALUATION GATE FAILED: MAPE >= {max_mape_percent}% on: "
             f"{json.dumps(failing, indent=2)}. Deployment blocked."
         )
-
-    return json.dumps(results)
 
 
 # ══════════════════════════════════════════════════════════════════════

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'crowd_velocity_vector.dart';
+part of 'crowd_vector.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator

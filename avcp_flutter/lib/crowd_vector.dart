@@ -8,8 +8,8 @@ library;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'crowd_velocity_vector.freezed.dart';
-part 'crowd_velocity_vector.g.dart';
+part 'crowd_vector.freezed.dart';
+part 'crowd_vector.g.dart';
 
 @freezed
 class CrowdVelocityVector with _$CrowdVelocityVector {
