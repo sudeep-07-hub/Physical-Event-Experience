@@ -1,0 +1,30 @@
+# Root .gitignore for Stadium Experience
+.DS_Store
+*.log
+*.pyc
+__pycache__/
+.history
+.vscode/
+
+# Flutter/Dart
+**/build/
+**/.dart_tool/
+**/.pub-cache/
+**/.pub/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/pubspec.lock
+
+# Android/iOS specific
+**/ios/Pods/
+**/ios/.symlinks/
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+
+# Zip files and large binaries
+*.zip
+*.tar.gz
+*.dmg
