@@ -27,16 +27,6 @@ class WayfindingScreen extends ConsumerStatefulWidget {
 class _WayfindingScreenState extends ConsumerState<WayfindingScreen> {
   final MapController _mapController = MapController();
 
-  // STADIUM ROUTE COORDINATES (Geographic baseline)
-  static const _latStart = 47.5935;
-  static const _lngStart = -122.3328;
-  static const _latCorner = 47.5950;
-  static const _lngCorner = -122.3328;
-  static const _latGateC = 47.5962;
-  static const _lngGateC = -122.3315;
-  static const _latGateD = 47.5972;
-  static const _lngGateD = -122.3328;
-
   @override
   void dispose() {
     _mapController.dispose();
@@ -73,10 +63,6 @@ class _WayfindingScreenState extends ConsumerState<WayfindingScreen> {
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
-              onPositionChanged: (pos, hasGesture) {
-                // Force a rebuild of the overlay layers to sync with map movement
-                setState(() {});
-              },
             ),
             children: [
               TileLayer(
@@ -105,37 +91,28 @@ class _WayfindingScreenState extends ConsumerState<WayfindingScreen> {
           // [2] RouteLayer
           IgnorePointer(
             child: RepaintBoundary(
-              child: CustomPaint(
-                size: size,
-                painter: RoutePainter(
-                  routePoints: [
-                    _mapController.camera.getOffsetFromOrigin(const LatLng(_latStart, _lngStart)),
-                    _mapController.camera.getOffsetFromOrigin(const LatLng(_latCorner, _lngCorner)),
-                    _mapController.camera.getOffsetFromOrigin(const LatLng(_latGateC, _lngGateC)),
-                  ],
-                  blockedPoints: intent == WayfindingIntent.rerouting ? [
-                    _mapController.camera.getOffsetFromOrigin(const LatLng(_latCorner, _lngCorner)),
-                    _mapController.camera.getOffsetFromOrigin(const LatLng(_latGateD, _lngGateD)),
-                  ] : [],
-                  gates: [
-                    GatePinData(
-                      offset: _mapController.camera.getOffsetFromOrigin(const LatLng(_latGateC, _lngGateC)), 
-                      gateId: 'C', 
-                      state: intent == WayfindingIntent.rerouting ? 'blocked' : 'assigned'
-                    ),
-                    if (intent == WayfindingIntent.rerouting) 
-                      GatePinData(
-                        offset: _mapController.camera.getOffsetFromOrigin(const LatLng(_latGateD, _lngGateD)), 
-                        gateId: 'D', 
-                        state: 'alternate'
-                      ),
-                  ],
-                  tokens: ext.tokens,
-                  intent: intent,
-                  dashOffset: 0.0,
-                ),
+            child: CustomPaint(
+              size: size,
+              painter: RoutePainter(
+                routePoints: [
+                  Offset(size.width * 0.5, size.height * 0.7),
+                  Offset(size.width * 0.5, size.height * 0.4),
+                  Offset(size.width * 0.6, size.height * 0.2),
+                ],
+                blockedPoints: intent == WayfindingIntent.rerouting ? [
+                  Offset(size.width * 0.5, size.height * 0.4),
+                  Offset(size.width * 0.4, size.height * 0.2),
+                ] : [],
+                gates: [
+                  GatePinData(offset: Offset(size.width * 0.6, size.height * 0.2), gateId: 'C', state: intent == WayfindingIntent.rerouting ? 'blocked' : 'assigned'),
+                  if (intent == WayfindingIntent.rerouting) GatePinData(offset: Offset(size.width * 0.8, size.height * 0.3), gateId: 'D', state: 'alternate'),
+                ],
+                tokens: ext.tokens,
+                intent: intent,
+                dashOffset: 0.0,
               ),
             ),
+          ),
           ),
 
           // [3] StatusBar
