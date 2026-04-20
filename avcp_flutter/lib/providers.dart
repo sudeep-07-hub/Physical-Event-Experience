@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:avcp_flutter/intent_service.dart';
 import 'package:avcp_flutter/mock_data_generator.dart';
 import 'package:avcp_flutter/crowd_vector.dart';
+import 'package:avcp_flutter/wayfinding/gate_intent_service.dart';
+import 'package:avcp_flutter/mock/wayfinding_mock_data.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 // Mock Mode Flag
@@ -48,6 +50,14 @@ final userContextProvider = StreamProvider<UserContext>((ref) {
     return MockDataGenerator.contextStream();
   }
   return MockDataGenerator.contextStream();
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// Gate Context Provider (Wayfinding)
+// ══════════════════════════════════════════════════════════════════════
+
+final mockGateContextProvider = StreamProvider<GateContext>((ref) {
+  return WayfindingMockData.contextStream();
 });
 
 // ══════════════════════════════════════════════════════════════════════

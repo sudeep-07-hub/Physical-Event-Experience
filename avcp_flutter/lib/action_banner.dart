@@ -219,14 +219,19 @@ class _WaitTimeBanner extends StatefulWidget {
   State<_WaitTimeBanner> createState() => _WaitTimeBannerState();
 }
 
-class _WaitTimeBannerState extends State<_WaitTimeBanner> {
+class _WaitTimeBannerState extends State<_WaitTimeBanner> with SingleTickerProviderStateMixin {
   Timer? _dismissTimer;
   bool _visible = true;
+  late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
     _dismissTimer = Timer(const Duration(seconds: 8), _dismiss);
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -243,6 +248,7 @@ class _WaitTimeBannerState extends State<_WaitTimeBanner> {
   @override
   void dispose() {
     _dismissTimer?.cancel();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -260,13 +266,27 @@ class _WaitTimeBannerState extends State<_WaitTimeBanner> {
     return Semantics(
       label: 'Wait time: ${widget.waitMinutes} minutes. '
           'Gate ${widget.zoneId} congested. Alternate route available.',
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: ext.tokens.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: ext.tokens.alertRed.withAlpha(128)),
-        ),
+      child: AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, child) {
+          final pulseValue = _pulseController.value;
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: ext.tokens.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: ext.tokens.alertRed.withOpacity(0.5 + (0.5 * pulseValue))),
+              boxShadow: [
+                BoxShadow(
+                  color: ext.tokens.alertRed.withOpacity(0.3 * pulseValue),
+                  blurRadius: 20 * pulseValue,
+                  spreadRadius: 2 * pulseValue,
+                )
+              ]
+            ),
+            child: child,
+          );
+        },
         child: Row(
           children: <Widget>[
             Icon(

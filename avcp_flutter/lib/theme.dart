@@ -12,23 +12,65 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dart:ui';
+// ══════════════════════════════════════════════════════════════════════
+// Glassmorphism Blur System
+// ══════════════════════════════════════════════════════════════════════
+
+class GlassContainer extends StatelessWidget {
+  final Widget child;
+  final double blur;
+  final double opacity;
+  final BorderRadiusGeometry borderRadius;
+  final EdgeInsetsGeometry padding;
+
+  const GlassContainer({
+    super.key,
+    required this.child,
+    this.blur = 10.0,
+    this.opacity = 0.15,
+    this.borderRadius = const BorderRadius.all(Radius.circular(16)),
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(opacity),
+            border: Border.all(
+              color: Colors.white.withOpacity(opacity * 2),
+              width: 1.5,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // Color Token System
 // ══════════════════════════════════════════════════════════════════════
 
 /// Immutable, const-constructible color palette for the Stadium-Dark system.
-///
-/// Two named variants:
-/// - [standard] — WCAG 2.1 AA (4.5:1 contrast minimum)
-/// - [highContrast] — WCAG 2.1 AAA (7.0:1 contrast minimum)
 @immutable
 class StadiumColorTokens {
   const StadiumColorTokens._({
     required this.primaryGold,
     required this.background,
     required this.surface,
+    required this.surfaceAlt,
     required this.success,
     required this.alertRed,
+    required this.uwbBlue,
+    required this.kpiOverlay,
     required this.onPrimary,
     required this.textPrimary,
     required this.textSecondary,
@@ -37,19 +79,25 @@ class StadiumColorTokens {
   final Color primaryGold;
   final Color background;
   final Color surface;
+  final Color surfaceAlt;
   final Color success;
   final Color alertRed;
+  final Color uwbBlue;
+  final Color kpiOverlay;
   final Color onPrimary;
   final Color textPrimary;
   final Color textSecondary;
 
-  /// Standard palette — WCAG AA compliant on dark backgrounds.
+  /// Standard palette
   static const StadiumColorTokens standard = StadiumColorTokens._(
     primaryGold: Color(0xFFFFD700),
-    background: Color(0xFF121212),
-    surface: Color(0xFF1E1E1E),
+    background: Color(0xFF0F1117),
+    surface: Color(0xFF13161F),
+    surfaceAlt: Color(0xFF1A1D26),
     success: Color(0xFF00E676),
     alertRed: Color(0xFFFF5252),
+    uwbBlue: Color(0xFF4FC3F7),
+    kpiOverlay: Color(0xE00F1117), // rgba(15,17,23,0.88)
     onPrimary: Color(0xFF000000),
     textPrimary: Color(0xFFFFFFFF),
     textSecondary: Color(0xFFB3B3B3),
@@ -60,8 +108,11 @@ class StadiumColorTokens {
     primaryGold: Color(0xFFFFE44D),
     background: Color(0xFF000000),
     surface: Color(0xFF0A0A0A),
+    surfaceAlt: Color(0xFF111111),
     success: Color(0xFF69FF47),
     alertRed: Color(0xFFFF6E6E),
+    uwbBlue: Color(0xFF4FC3F7),
+    kpiOverlay: Color(0xE0000000),
     onPrimary: Color(0xFF000000),
     textPrimary: Color(0xFFFFFFFF),
     textSecondary: Color(0xFFCCCCCC),
@@ -77,8 +128,11 @@ class StadiumColorTokens {
       primaryGold: Color.lerp(a.primaryGold, b.primaryGold, t)!,
       background: Color.lerp(a.background, b.background, t)!,
       surface: Color.lerp(a.surface, b.surface, t)!,
+      surfaceAlt: Color.lerp(a.surfaceAlt, b.surfaceAlt, t)!,
       success: Color.lerp(a.success, b.success, t)!,
       alertRed: Color.lerp(a.alertRed, b.alertRed, t)!,
+      uwbBlue: Color.lerp(a.uwbBlue, b.uwbBlue, t)!,
+      kpiOverlay: Color.lerp(a.kpiOverlay, b.kpiOverlay, t)!,
       onPrimary: Color.lerp(a.onPrimary, b.onPrimary, t)!,
       textPrimary: Color.lerp(a.textPrimary, b.textPrimary, t)!,
       textSecondary: Color.lerp(a.textSecondary, b.textSecondary, t)!,

@@ -7,7 +7,8 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'package:avcp_flutter/firebase_options.dart';
 import 'package:avcp_flutter/theme.dart';
-import 'package:avcp_flutter/dashboard.dart';
+import 'package:avcp_flutter/wayfinding/wayfinding_screen.dart';
+import 'package:latlong2/latlong.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +32,7 @@ class AvenuControlApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: StadiumDarkTheme.build(isHighContrast: isHighContrast),
       home: const Scaffold(
-        body: GlanceableDashboard(zoneId: 'gate_c_concourse_l2'),
+        body: WayfindingScreen(zoneId: 'gate_c_concourse_l2', venueCenter: LatLng(47.5952, -122.3316)),
       ),
     );
   }

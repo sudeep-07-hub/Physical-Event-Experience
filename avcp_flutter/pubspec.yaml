@@ -23,7 +23,8 @@ dependencies:
   json_annotation: ^4.9.0
 
   # Maps & visualization
-  google_maps_flutter: ^2.6.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
   fl_chart: ^0.68.0
 
   # Firebase
@@ -38,7 +39,16 @@ dependencies:
   shared_preferences: ^2.3.0
 
   # Utilities
-  collection: ^1.18.0
+  # Connectivity & Mesh (BLE)
+  connectivity_plus: ^5.0.2
+  flutter_reactive_ble: ^5.3.1
+  
+  # UI Joy (AR & Haptics)
+  arcore_flutter_plugin: ^0.1.0
+  vibration: ^1.8.3
+  
+  # Crypto (Zero-PII Privacy Base)
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

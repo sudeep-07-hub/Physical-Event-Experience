@@ -13,12 +13,45 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:vibration/vibration.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'package:avcp_flutter/action_banner.dart';
 import 'package:avcp_flutter/theme.dart';
 import 'package:avcp_flutter/providers.dart';
+
+// ══════════════════════════════════════════════════════════════════════
+// Hardware Routing Haptics
+// ══════════════════════════════════════════════════════════════════════
+
+/// Translates digital routing logic directly into physical hardware pulses
+/// so the user does not need to look at down at their screen during evacuations.
+abstract class HapticRouter {
+  static Future<void> pulseTurnLeft() async {
+    if (!kIsWeb && (await Vibration.hasVibrator() ?? false)) {
+      // Two quick short pulses.
+      Vibration.vibrate(pattern: [0, 100, 100, 100]);
+    }
+  }
+
+  static Future<void> pulseTurnRight() async {
+    if (!kIsWeb && (await Vibration.hasVibrator() ?? false)) {
+      // Three quick short pulses.
+      Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]);
+    }
+  }
+
+  static Future<void> pulseProceed() async {
+    if (!kIsWeb && (await Vibration.hasVibrator() ?? false)) {
+      // Single long solid pulse.
+      Vibration.vibrate(duration: 500);
+    }
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════════
 // Dashboard Root
@@ -61,7 +94,7 @@ class GlanceableDashboard extends ConsumerWidget {
           top: 0,
           left: 0,
           right: 0,
-          child: KpiOverlayRow(zoneId: zoneId),
+          child: SemanticStatePanel(zoneId: zoneId),
         ),
 
         // [3] Contextual action banner (bottom)
@@ -108,70 +141,109 @@ class VenueMapLayer extends ConsumerWidget {
             : Colors.transparent;
 
     // Placeholder Voronoi footprint around the initial position
-    final Set<Polygon> voronoiFootprint = {
+    final List<Polygon> voronoiFootprint = [
       Polygon(
-        polygonId: PolygonId('voronoi_$zoneId'),
         points: [
           LatLng(initialPosition.latitude + 0.0005, initialPosition.longitude - 0.0005),
           LatLng(initialPosition.latitude + 0.0005, initialPosition.longitude + 0.0005),
           LatLng(initialPosition.latitude - 0.0005, initialPosition.longitude + 0.0008),
           LatLng(initialPosition.latitude - 0.0008, initialPosition.longitude - 0.0002),
         ],
-        fillColor: polygonColor,
-        strokeColor: polygonColor.withOpacity(0.8),
-        strokeWidth: 2,
+        color: polygonColor,
+        borderColor: polygonColor.withOpacity(0.8),
+        borderStrokeWidth: 2,
       ),
-    };
+    ];
 
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(
-        target: initialPosition,
-        zoom: 17.0,
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: initialPosition,
+        initialZoom: 17.0,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+        ),
+        onTap: (tapPosition, point) {
+          _showZoneDetailSheet(context, zoneId);
+        },
       ),
-      mapType: MapType.normal,
-      style: _kDarkMapStyle,
-      polygons: voronoiFootprint,
-      myLocationEnabled: false, // ZERO PII — no user location
-      myLocationButtonEnabled: false,
-      zoomControlsEnabled: false,
-      compassEnabled: false,
-      mapToolbarEnabled: false,
-      onTap: (LatLng position) {
-        _showZoneDetailSheet(context, zoneId);
-      },
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.avcp.dashboard',
+          // Cheap trick to turn standard OSM maps into beautiful dark mode:
+          tileBuilder: (context, widget, tile) {
+            return ColorFiltered(
+              colorFilter: const ColorFilter.matrix([
+                -1,  0,  0, 0, 255,
+                 0, -1,  0, 0, 255,
+                 0,  0, -1, 0, 255,
+                 0,  0,  0, 1,   0,
+              ]),
+              child: widget,
+            );
+          },
+        ),
+        PolygonLayer(polygons: voronoiFootprint),
+      ],
     );
   }
 
   void _showZoneDetailSheet(BuildContext context, String zoneId) {
-    final StadiumThemeExtension ext =
-        Theme.of(context).extension<StadiumThemeExtension>()!;
-    showBottomSheet(
+    showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: ext.tokens.surface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
+        return Consumer(builder: (context, ref, child) {
+          final density = ref.watch(crowdVectorProvider(zoneId).select((v) => v.value?.densityPpm2)) ?? 0.0;
+          final pred60 = ref.watch(crowdVectorProvider(zoneId).select((v) => v.value?.predictedDensity60s)) ?? 0.0;
+          final pred300 = ref.watch(crowdVectorProvider(zoneId).select((v) => v.value?.predictedDensity300s)) ?? 0.0;
+          
+          return GlassContainer(
+            blur: 20.0,
+            opacity: 0.1,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            child: Container(
+              height: 300,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Predictive Flow Chart (Next 5 Mins)",
+                    style: AvenuTypography.label(ctx).copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: LineChart(
+                      LineChartData(
+                        gridData: const FlGridData(show: false),
+                        titlesData: const FlTitlesData(show: false),
+                        borderData: FlBorderData(show: false),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: [
+                              FlSpot(0, density),
+                              FlSpot(1, pred60),
+                              FlSpot(5, pred300),
+                            ],
+                            isCurved: true,
+                            color: StadiumColorTokens.standard.primaryGold,
+                            barWidth: 4,
+                            isStrokeCapRound: true,
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: StadiumColorTokens.standard.primaryGold.withOpacity(0.2),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                'Zone: $zoneId',
-                style: AvenuTypography.label(ctx),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap map for live zone details',
-                style: AvenuTypography.caption(ctx),
-              ),
-            ],
-          ),
-        );
+          );
+        });
       },
     );
   }
@@ -315,143 +387,71 @@ class FlowVectorPainter extends CustomPainter {
 // ══════════════════════════════════════════════════════════════════════
 
 /// Top-bar row of three KPI cards with 80% opaque dark background.
-class KpiOverlayRow extends StatelessWidget {
-  const KpiOverlayRow({super.key, required this.zoneId});
+class SemanticStatePanel extends ConsumerWidget {
+  const SemanticStatePanel({super.key, required this.zoneId});
 
   final String zoneId;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 72,
-      color: const Color(0xCC121212), // 80% opaque background
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      child: SafeArea(
-        bottom: false,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final density = ref.watch(crowdVectorProvider(zoneId).select((v) => v.value?.densityPpm2)) ?? 0.0;
+    final ratio = ref.watch(crowdVectorProvider(zoneId).select((v) => v.value?.dwellRatio)) ?? 0.0;
+    
+    // Abstract the physics to human terms
+    String headline = "Free Flowing";
+    String description = "Proceed to your destination.";
+    Color stateColor = StadiumColorTokens.standard.success;
+    IconData stateIcon = Icons.directions_walk;
+    
+    if (density >= 4.0) {
+      headline = "Severe Bottleneck";
+      description = "Avoid this sector immediately.";
+      stateColor = StadiumColorTokens.standard.alertRed;
+      stateIcon = Icons.warning_amber_rounded;
+    } else if (density >= 2.0) {
+      headline = "Heavy Traffic";
+      final mins = (ratio * 15).round();
+      description = "Estimated transit time: $mins mins";
+      stateColor = Colors.orangeAccent;
+      stateIcon = Icons.groups_rounded;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: GlassContainer(
+        blur: 15.0,
+        opacity: 0.2,
         child: Row(
-          children: <Widget>[
-            Expanded(child: FlowKpiCard(zoneId: zoneId)),
-            const SizedBox(width: 8),
-            Expanded(child: WaitKpiCard(zoneId: zoneId)),
-            const SizedBox(width: 8),
-            Expanded(child: DensityKpiCard(zoneId: zoneId)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Generic KPI card with semantic label, minimum 44×44pt touch target.
-class KpiCard extends StatelessWidget {
-  const KpiCard({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.unit,
-    required this.semanticsLabel,
-  });
-
-  final String label;
-  final String value;
-  final String unit;
-  final String semanticsLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: semanticsLabel,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 88, minHeight: 44),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(label, style: AvenuTypography.caption(context)),
-            const SizedBox(height: 2),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: <Widget>[
-                Text(
-                  value,
-                  style: AvenuTypography.kpi(context).copyWith(fontSize: 20),
-                ),
-                const SizedBox(width: 2),
-                Text(unit, style: AvenuTypography.caption(context)),
-              ],
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: stateColor.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(stateIcon, color: stateColor, size: 32),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    headline,
+                    style: AvenuTypography.kpi(context).copyWith(color: stateColor, fontSize: 24),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: AvenuTypography.label(context),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-// ── Select-driven KPI Cards ─────────────────────────────────────────
-
-/// Flow speed KPI card — uses `.select()` on velocityX only.
-class FlowKpiCard extends ConsumerWidget {
-  const FlowKpiCard({super.key, required this.zoneId});
-
-  final String zoneId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final double vx = ref
-        .watch(crowdVectorProvider(zoneId).select((v) => v.value?.velocityX))
-        ?? 0.0;
-
-    final String display = vx.abs().toStringAsFixed(1);
-    return KpiCard(
-      label: 'FLOW',
-      value: display,
-      unit: 'm/s',
-      semanticsLabel: 'Flow speed: $display metres per second',
-    );
-  }
-}
-
-/// Wait time KPI card — uses `.select()` on dwellRatio only.
-class WaitKpiCard extends ConsumerWidget {
-  const WaitKpiCard({super.key, required this.zoneId});
-
-  final String zoneId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final double ratio = ref
-        .watch(crowdVectorProvider(zoneId).select((v) => v.value?.dwellRatio))
-        ?? 0.0;
-
-    final String display = (ratio * 15).round().toString();
-    return KpiCard(
-      label: 'WAIT',
-      value: display,
-      unit: 'min',
-      semanticsLabel: 'Estimated wait: $display minutes',
-    );
-  }
-}
-
-/// Density KPI card — uses `.select()` on densityPpm2 only.
-class DensityKpiCard extends ConsumerWidget {
-  const DensityKpiCard({super.key, required this.zoneId});
-
-  final String zoneId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final double density = ref
-        .watch(crowdVectorProvider(zoneId).select((v) => v.value?.densityPpm2))
-        ?? 0.0;
-
-    final String display = ((density / 6.5) * 100).round().toString();
-    return KpiCard(
-      label: 'DENSITY',
-      value: display,
-      unit: '%',
-      semanticsLabel: 'Crowd density: $display percent of capacity',
     );
   }
 }
