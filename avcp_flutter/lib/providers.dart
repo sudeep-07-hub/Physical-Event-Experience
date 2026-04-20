@@ -6,11 +6,157 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:avcp_flutter/wayfinding/gate_bitmaps.dart';
 import 'package:avcp_flutter/intent_service.dart';
 import 'package:avcp_flutter/mock_data_generator.dart';
 import 'package:avcp_flutter/crowd_vector.dart';
 import 'package:avcp_flutter/wayfinding/gate_intent_service.dart';
 import 'package:avcp_flutter/mock/wayfinding_mock_data.dart';
+
+// ══════════════════════════════════════════════════════════════════════
+// Navigation Providers (Nav-Sync v1.2.0)
+// ══════════════════════════════════════════════════════════════════════
+
+/// Static map of gate IDs to their geo-coordinates.
+final gateLatLngProvider = Provider.family<LatLng, String>((ref, gateId) {
+  // Stadium Gate coordinates (approximate based on Lumen Field layout)
+  final gates = {
+    'C': const LatLng(47.5952, -122.3316),
+    'D': const LatLng(47.5960, -122.3325),
+    'A': const LatLng(47.5940, -122.3310),
+  };
+  return gates[gateId] ?? const LatLng(47.5952, -122.3316);
+});
+
+/// Current user location (Mock moving dot).
+final userLatLngProvider = StateProvider<LatLng>((ref) {
+  return const LatLng(47.5945, -122.3323); // Centered in the stadium bowl
+});
+
+/// Map zoom level tracker for dynamic UI adjustments.
+final mapZoomProvider = StateProvider<double>((ref) => 17.0);
+
+/// FutureProvider for high-DPI rendered marker icons.
+final gateBitmapsProvider = FutureProvider<GateBitmaps>((ref) async {
+  return GateBitmaps.create(dpr: 2.0); // Default to 2.0, will be updated in UI if needed
+});
+
+/// Navigation waypoint calculations based on current Intent.
+final routeWaypointsProvider = Provider.family<List<LatLng>, String>((ref, zoneId) {
+  final ctxResult = ref.watch(mockGateContextProvider);
+  final ctx = ctxResult.valueOrNull;
+  if (ctx == null) return [];
+
+  final userPos = ref.watch(userLatLngProvider);
+  final gatePos = ref.watch(gateLatLngProvider(ctx.assignedGateId));
+
+  // For mock: direct line. In production, this would call a directions API or A* mesh.
+  return [userPos, gatePos];
+});
+
+/// Secondary points for "congested" or blocked routes.
+final blockedRouteWaypointsProvider = Provider.family<List<LatLng>, String>((ref, zoneId) {
+  // Returning an arbitrary blocked path Segment for rerouting demo
+  return [const LatLng(47.5945, -122.3323), const LatLng(47.5952, -122.3325)];
+});
+
+/// Native Polyline set for the map.
+final routePolylinesProvider = Provider.family<Set<Polyline>, String>((ref, zoneId) {
+  final waypoints = ref.watch(routeWaypointsProvider(zoneId));
+  final ctx = ref.watch(mockGateContextProvider).valueOrNull;
+  if (ctx == null || waypoints.isEmpty) return {};
+
+  final intentService = GateIntentServiceImpl();
+  final intent = intentService.detect(ctx);
+
+  final routeColor = intent == WayfindingIntent.rerouting
+      ? const Color(0xFF00E676)
+      : const Color(0xFFFFD700);
+
+  final glowColor = intent == WayfindingIntent.rerouting
+      ? const Color(0x3300E676)
+      : const Color(0x33FFD700);
+
+  return {
+    // Soft glow underneath
+    Polyline(
+      polylineId: const PolylineId('route_glow'),
+      points: waypoints,
+      color: glowColor,
+      width: 10,
+      jointType: JointType.round,
+      endCap: Cap.roundCap,
+      startCap: Cap.roundCap,
+    ),
+    // Main route line
+    Polyline(
+      polylineId: const PolylineId('route_main'),
+      points: waypoints,
+      color: routeColor,
+      width: 4,
+      patterns: [PatternItem.dot, PatternItem.gap(14)],
+      jointType: JointType.round,
+      endCap: Cap.roundCap,
+      startCap: Cap.roundCap,
+    ),
+  };
+});
+
+/// Native Marker set for the map.
+final routeMarkersProvider = Provider.family<Set<Marker>, String>((ref, zoneId) {
+  final ctx = ref.watch(mockGateContextProvider).valueOrNull;
+  final bitmapsAsync = ref.watch(gateBitmapsProvider);
+  
+  if (ctx == null) return {};
+  final bitmaps = bitmapsAsync.valueOrNull;
+  if (bitmaps == null) return {};
+
+  final intentService = GateIntentServiceImpl();
+  final intent = intentService.detect(ctx);
+  final userPos = ref.watch(userLatLngProvider);
+  final gatePos = ref.watch(gateLatLngProvider(ctx.assignedGateId));
+
+  final markers = <Marker>{};
+
+  // User dot
+  markers.add(Marker(
+    markerId: const MarkerId('user_dot'),
+    position: userPos,
+    icon: bitmaps.userDot,
+    anchor: const Offset(0.5, 0.5),
+    flat: true,
+    zIndex: 10,
+  ));
+
+  // Assigned gate
+  markers.add(Marker(
+    markerId: MarkerId('gate_${ctx.assignedGateId}'),
+    position: gatePos,
+    icon: switch (intent) {
+      WayfindingIntent.nearGate => bitmaps.gateNearGold,
+      WayfindingIntent.rerouting => bitmaps.gateBlocked,
+      _ => bitmaps.gateAssigned,
+    },
+    anchor: const Offset(0.5, 0.5),
+    flat: true,
+    zIndex: 9,
+  ));
+
+  // Alternate gate (rerouting only)
+  if (intent == WayfindingIntent.rerouting) {
+    markers.add(Marker(
+      markerId: MarkerId('gate_alt_${ctx.alternateGateId}'),
+      position: ref.watch(gateLatLngProvider(ctx.alternateGateId)),
+      icon: bitmaps.gateAlternate,
+      anchor: const Offset(0.5, 0.5),
+      flat: true,
+      zIndex: 9,
+    ));
+  }
+
+  return markers;
+});
 
 // ══════════════════════════════════════════════════════════════════════
 // Mock Mode Flag

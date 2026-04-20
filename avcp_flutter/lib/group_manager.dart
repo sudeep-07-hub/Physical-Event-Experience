@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart' as ll2;
 
 // ══════════════════════════════════════════════════════════════════════
 // Friend Finder Service (Zero-PII Proximal Metrics)
@@ -25,9 +26,13 @@ class FriendFinderService {
 
   /// Calculates "Relative Spatial Distance" preventing exact pinpointing.
   RelativeProximity calculateRelativeDistance(LatLng myCurrentLocation, LatLng friendLastLocation) {
-    // We use standard Haversine distance via LatLong2 library.
-    final Distance distance = const Distance();
-    final double meters = distance.as(LengthUnit.Meter, myCurrentLocation, friendLastLocation);
+    // We use standard Haversine distance via LatLong2 library (aliased).
+    final ll2.Distance distance = const ll2.Distance();
+    final double meters = distance.as(
+      ll2.LengthUnit.Meter,
+      ll2.LatLng(myCurrentLocation.latitude, myCurrentLocation.longitude),
+      ll2.LatLng(friendLastLocation.latitude, friendLastLocation.longitude),
+    );
     
     // Abstract the exact physical meters into "Hot/Cold" zones for Zero-PII adherence.
     if (meters < 20) return RelativeProximity.immediate;

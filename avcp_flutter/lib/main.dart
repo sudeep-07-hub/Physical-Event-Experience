@@ -8,7 +8,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:avcp_flutter/firebase_options.dart';
 import 'package:avcp_flutter/theme.dart';
 import 'package:avcp_flutter/wayfinding/wayfinding_screen.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:avcp_flutter/providers.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,8 +19,19 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize Android Map Renderer for advanced polyline patterns
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    await AndroidGoogleMapsFlutter.init(
+      renderer: AndroidMapRenderer.latest,
+    );
+  }
   
-  runApp(const ProviderScope(child: AvenuControlApp()));
+  final container = ProviderContainer();
+  // Pre-warm marker bitmaps to ensure first-frame visibility
+  await container.read(gateBitmapsProvider.future);
+  
+  runApp(UncontrolledProviderScope(container: container, child: const AvenuControlApp()));
 }
 
 class AvenuControlApp extends ConsumerWidget {

@@ -1,14 +1,11 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../providers.dart';
 import '../theme.dart';
 import 'gate_intent_service.dart';
 import 'kpi_strip.dart';
 import 'direction_banner.dart';
-import 'route_painter.dart';
-import 'heatmap_tile_provider.dart';
 
 class WayfindingScreen extends ConsumerStatefulWidget {
   const WayfindingScreen({
@@ -25,11 +22,11 @@ class WayfindingScreen extends ConsumerStatefulWidget {
 }
 
 class _WayfindingScreenState extends ConsumerState<WayfindingScreen> {
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
 
   @override
   void dispose() {
-    _mapController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -52,68 +49,27 @@ class _WayfindingScreenState extends ConsumerState<WayfindingScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // [0] VenueMapBase
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: widget.venueCenter,
-              initialZoom: isNearGate ? 19.0 : 17.0,
-              minZoom: 14.0,
-              maxZoom: 20.0,
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-              ),
+          // [0] VenueMapBase (GoogleMap Integration)
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: widget.venueCenter,
+              zoom: isNearGate ? 19.0 : 17.0,
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.avcp.dashboard',
-                tileBuilder: (context, widget, tile) {
-                  return ColorFiltered(
-                    colorFilter: const ColorFilter.matrix([
-                      -1,  0,  0, 0, 255,
-                       0, -1,  0, 0, 255,
-                       0,  0, -1, 0, 255,
-                       0,  0,  0, 1,   0,
-                    ]),
-                    child: widget,
-                  );
-                },
-              ),
-              IgnorePointer(
-                child: TileLayer(
-                  tileProvider: HeatmapTileProvider(),
-                ),
-              ),
-            ],
+            mapType: MapType.normal,
+            myLocationEnabled: false,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            style: _googleMapDarkStyle,
+            onMapCreated: (controller) => _mapController = controller,
+            onCameraMove: (position) {
+              ref.read(mapZoomProvider.notifier).state = position.zoom;
+            },
+            polylines: ref.watch(routePolylinesProvider(widget.zoneId)),
+            markers: ref.watch(routeMarkersProvider(widget.zoneId)),
           ),
 
-          // [2] RouteLayer
-          IgnorePointer(
-            child: RepaintBoundary(
-            child: CustomPaint(
-              size: size,
-              painter: RoutePainter(
-                routePoints: [
-                  Offset(size.width * 0.5, size.height * 0.7),
-                  Offset(size.width * 0.5, size.height * 0.4),
-                  Offset(size.width * 0.6, size.height * 0.2),
-                ],
-                blockedPoints: intent == WayfindingIntent.rerouting ? [
-                  Offset(size.width * 0.5, size.height * 0.4),
-                  Offset(size.width * 0.4, size.height * 0.2),
-                ] : [],
-                gates: [
-                  GatePinData(offset: Offset(size.width * 0.6, size.height * 0.2), gateId: 'C', state: intent == WayfindingIntent.rerouting ? 'blocked' : 'assigned'),
-                  if (intent == WayfindingIntent.rerouting) GatePinData(offset: Offset(size.width * 0.8, size.height * 0.3), gateId: 'D', state: 'alternate'),
-                ],
-                tokens: ext.tokens,
-                intent: intent,
-                dashOffset: 0.0,
-              ),
-            ),
-          ),
-          ),
+          // [2] RouteLayer (DELETED: Now handled by native polylines/markers)
+
 
           // [3] StatusBar
           Positioned(
@@ -158,23 +114,49 @@ class _WayfindingScreenState extends ConsumerState<WayfindingScreen> {
 
 class _ZoomButtonColumn extends StatelessWidget {
   const _ZoomButtonColumn({required this.mapController});
-  final MapController mapController;
+  final GoogleMapController? mapController;
 
   @override
   Widget build(BuildContext context) => Column(
     children: [
       _ZoomButton(
         icon: Icons.add,
-        onTap: () => mapController.move(mapController.camera.center, mapController.camera.zoom + 1),
+        onTap: () async {
+          if (mapController == null) return;
+          final zoom = await mapController!.getZoomLevel();
+          mapController!.animateCamera(CameraUpdate.zoomTo(zoom + 1));
+        },
       ),
       const SizedBox(height: 6),
       _ZoomButton(
         icon: Icons.remove,
-        onTap: () => mapController.move(mapController.camera.center, mapController.camera.zoom - 1),
+        onTap: () async {
+          if (mapController == null) return;
+          final zoom = await mapController!.getZoomLevel();
+          mapController!.animateCamera(CameraUpdate.zoomTo(zoom - 1));
+        },
       ),
     ],
   );
 }
+
+// Dark standard map style JSON
+const String _googleMapDarkStyle = '''
+[
+  { "elementType": "geometry", "stylers": [ { "color": "#212121" } ] },
+  { "elementType": "labels.icon", "stylers": [ { "visibility": "off" } ] },
+  { "elementType": "labels.text.fill", "stylers": [ { "color": "#757575" } ] },
+  { "elementType": "labels.text.stroke", "stylers": [ { "color": "#212121" } ] },
+  { "featureType": "administrative", "elementType": "geometry", "stylers": [ { "color": "#757575" } ] },
+  { "featureType": "administrative.country", "elementType": "labels.text.fill", "stylers": [ { "color": "#9e9e9e" } ] },
+  { "featureType": "landscape", "elementType": "geometry", "stylers": [ { "color": "#121212" } ] },
+  { "featureType": "poi", "elementType": "geometry", "stylers": [ { "color": "#121212" } ] },
+  { "featureType": "road", "elementType": "geometry.fill", "stylers": [ { "color": "#2c2c2c" } ] },
+  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [ { "color": "#8a8a8a" } ] },
+  { "featureType": "road.highway", "elementType": "geometry", "stylers": [ { "color": "#3c3c3c" } ] },
+  { "featureType": "water", "elementType": "geometry", "stylers": [ { "color": "#000000" } ] }
+]
+''';
 
 class _ZoomButton extends StatelessWidget {
   const _ZoomButton({required this.icon, required this.onTap});

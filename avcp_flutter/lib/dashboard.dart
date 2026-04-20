@@ -15,8 +15,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:vibration/vibration.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -141,50 +140,33 @@ class VenueMapLayer extends ConsumerWidget {
             : Colors.transparent;
 
     // Placeholder Voronoi footprint around the initial position
-    final List<Polygon> voronoiFootprint = [
+    final Set<Polygon> voronoiFootprint = {
       Polygon(
+        polygonId: const PolygonId('voronoi_zone'),
         points: [
           LatLng(initialPosition.latitude + 0.0005, initialPosition.longitude - 0.0005),
           LatLng(initialPosition.latitude + 0.0005, initialPosition.longitude + 0.0005),
           LatLng(initialPosition.latitude - 0.0005, initialPosition.longitude + 0.0008),
           LatLng(initialPosition.latitude - 0.0008, initialPosition.longitude - 0.0002),
         ],
-        color: polygonColor,
-        borderColor: polygonColor.withOpacity(0.8),
-        borderStrokeWidth: 2,
+        fillColor: polygonColor,
+        strokeColor: polygonColor.withOpacity(0.8),
+        strokeWidth: 2,
       ),
-    ];
+    };
 
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: initialPosition,
-        initialZoom: 17.0,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-        ),
-        onTap: (tapPosition, point) {
-          _showZoneDetailSheet(context, zoneId);
-        },
+    return GoogleMap(
+      initialCameraPosition: CameraPosition(
+        target: initialPosition,
+        zoom: 17.0,
       ),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.avcp.dashboard',
-          // Cheap trick to turn standard OSM maps into beautiful dark mode:
-          tileBuilder: (context, widget, tile) {
-            return ColorFiltered(
-              colorFilter: const ColorFilter.matrix([
-                -1,  0,  0, 0, 255,
-                 0, -1,  0, 0, 255,
-                 0,  0, -1, 0, 255,
-                 0,  0,  0, 1,   0,
-              ]),
-              child: widget,
-            );
-          },
-        ),
-        PolygonLayer(polygons: voronoiFootprint),
-      ],
+      myLocationEnabled: false,
+      myLocationButtonEnabled: false,
+      zoomControlsEnabled: false,
+      polygons: voronoiFootprint,
+      onTap: (point) {
+        _showZoneDetailSheet(context, zoneId);
+      },
     );
   }
 
