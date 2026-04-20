@@ -59,7 +59,7 @@ class _WayfindingScreenState extends ConsumerState<WayfindingScreen> {
             myLocationEnabled: false,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
-            style: _googleMapDarkStyle,
+            style: kGoogleMapDarkStyle,
             onMapCreated: (controller) => _mapController = controller,
             onCameraMove: (position) {
               ref.read(mapZoomProvider.notifier).state = position.zoom;
@@ -140,23 +140,8 @@ class _ZoomButtonColumn extends StatelessWidget {
   );
 }
 
-// Dark standard map style JSON
-const String _googleMapDarkStyle = '''
-[
-  { "elementType": "geometry", "stylers": [ { "color": "#212121" } ] },
-  { "elementType": "labels.icon", "stylers": [ { "visibility": "off" } ] },
-  { "elementType": "labels.text.fill", "stylers": [ { "color": "#757575" } ] },
-  { "elementType": "labels.text.stroke", "stylers": [ { "color": "#212121" } ] },
-  { "featureType": "administrative", "elementType": "geometry", "stylers": [ { "color": "#757575" } ] },
-  { "featureType": "administrative.country", "elementType": "labels.text.fill", "stylers": [ { "color": "#9e9e9e" } ] },
-  { "featureType": "landscape", "elementType": "geometry", "stylers": [ { "color": "#121212" } ] },
-  { "featureType": "poi", "elementType": "geometry", "stylers": [ { "color": "#121212" } ] },
-  { "featureType": "road", "elementType": "geometry.fill", "stylers": [ { "color": "#2c2c2c" } ] },
-  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [ { "color": "#8a8a8a" } ] },
-  { "featureType": "road.highway", "elementType": "geometry", "stylers": [ { "color": "#3c3c3c" } ] },
-  { "featureType": "water", "elementType": "geometry", "stylers": [ { "color": "#000000" } ] }
-]
-''';
+// Dark map style is now shared via `kGoogleMapDarkStyle` from theme.dart.
+
 
 class _ZoomButton extends StatelessWidget {
   const _ZoomButton({required this.icon, required this.onTap});

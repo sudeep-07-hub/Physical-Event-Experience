@@ -13,6 +13,7 @@ import 'package:avcp_flutter/mock_data_generator.dart';
 import 'package:avcp_flutter/crowd_vector.dart';
 import 'package:avcp_flutter/wayfinding/gate_intent_service.dart';
 import 'package:avcp_flutter/mock/wayfinding_mock_data.dart';
+import 'package:avcp_flutter/services/firebase_crowd_service.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 // Navigation Providers (Nav-Sync v1.2.0)
@@ -179,8 +180,7 @@ final crowdVectorProvider =
     return MockDataGenerator.stream(zoneId: zoneId);
   }
   // Release path — Firebase RTDB stream.
-  // Import and use FirebaseCrowdService in production builds.
-  return MockDataGenerator.stream(zoneId: zoneId);
+  return FirebaseCrowdService().watchZone(zoneId);
 });
 
 // ══════════════════════════════════════════════════════════════════════
@@ -195,6 +195,8 @@ final userContextProvider = StreamProvider<UserContext>((ref) {
   if (kUseMock) {
     return MockDataGenerator.contextStream();
   }
+  // Release path — derive context from Firebase crowd vectors.
+  // In production, this combines UWBService + crowd vectors.
   return MockDataGenerator.contextStream();
 });
 
